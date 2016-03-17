@@ -397,9 +397,9 @@ enum GCDAsyncSocketConfig
 		else
 		{
 			if (readLength > 0)
-				buffer = [[NSMutableData alloc] initWithLength:readLength];
+                buffer =  [NSMutableData dataWithLength:readLength];//[[NSMutableData alloc] initWithLength:readLength];
 			else
-				buffer = [[NSMutableData alloc] initWithLength:0];
+                buffer = [NSMutableData data];//[[NSMutableData alloc] initWithLength:0];
 			
 			startOffset = 0;
 			bufferOwner = YES;
@@ -4232,13 +4232,7 @@ enum GCDAsyncSocketConfig
 		return;
 	}
 	
-	GCDAsyncReadPacket *packet = [[GCDAsyncReadPacket alloc] initWithData:buffer
-	                                                          startOffset:offset
-	                                                            maxLength:length
-	                                                              timeout:timeout
-	                                                           readLength:0
-	                                                           terminator:nil
-	                                                                  tag:tag];
+	
 	
 	dispatch_async(socketQueue, ^{ @autoreleasepool {
 		
@@ -4246,8 +4240,16 @@ enum GCDAsyncSocketConfig
 		
 		if ((flags & kSocketStarted) && !(flags & kForbidReadsWrites))
 		{
+            GCDAsyncReadPacket *packet = [[GCDAsyncReadPacket alloc] initWithData:buffer
+                                                                      startOffset:offset
+                                                                        maxLength:length
+                                                                          timeout:timeout
+                                                                       readLength:0
+                                                                       terminator:nil
+                                                                              tag:tag];
 			[readQueue addObject:packet];
 			[self maybeDequeueRead];
+            //[packet ]
 		}
 	}});
 	
@@ -5488,7 +5490,7 @@ enum GCDAsyncSocketConfig
 	NSAssert(currentRead, @"Trying to complete current read when there is no current read.");
 	
 	
-	NSData *result = nil;
+	__block NSData *result = nil;
 	
 	if (currentRead->bufferOwner)
 	{
@@ -5523,11 +5525,15 @@ enum GCDAsyncSocketConfig
 
 	if (delegateQueue && [theDelegate respondsToSelector:@selector(socket:didReadData:withTag:)])
 	{
-		GCDAsyncReadPacket *theRead = currentRead; // Ensure currentRead retained since result may not own buffer
+		__block GCDAsyncReadPacket *theRead = currentRead; // Ensure currentRead retained since result may not own buffer
 		
 		dispatch_async(delegateQueue, ^{ @autoreleasepool {
 			
 			[theDelegate socket:self didReadData:result withTag:theRead->tag];
+            
+            theRead->buffer = nil;
+            theRead = nil;
+            //result = nil;
 		}});
 	}
 	
