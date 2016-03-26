@@ -5530,10 +5530,8 @@ enum GCDAsyncSocketConfig
 		dispatch_async(delegateQueue, ^{ @autoreleasepool {
 			
 			[theDelegate socket:self didReadData:result withTag:theRead->tag];
-            
-            theRead->buffer = nil;
-            theRead = nil;
-            //result = nil;
+            //theRead = nil;
+            result = nil;
 		}});
 	}
 	
@@ -5547,7 +5545,7 @@ enum GCDAsyncSocketConfig
 		dispatch_source_cancel(readTimer);
 		readTimer = NULL;
 	}
-	
+	currentRead->buffer = nil;
 	currentRead = nil;
 }
 
@@ -5659,8 +5657,8 @@ enum GCDAsyncSocketConfig
 {
 	if ([data length] == 0) return;
 	
-	GCDAsyncWritePacket *packet = [[GCDAsyncWritePacket alloc] initWithData:data timeout:timeout tag:tag];
 	
+	GCDAsyncWritePacket *packet = [[GCDAsyncWritePacket alloc] initWithData:data timeout:timeout tag:tag];
 	dispatch_async(socketQueue, ^{ @autoreleasepool {
 		
 		LogTrace();
@@ -6190,7 +6188,7 @@ enum GCDAsyncSocketConfig
 		dispatch_source_cancel(writeTimer);
 		writeTimer = NULL;
 	}
-	
+    //currentWrite->buffer = nil;
 	currentWrite = nil;
 }
 
