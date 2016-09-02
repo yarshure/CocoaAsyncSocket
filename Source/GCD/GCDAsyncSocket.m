@@ -2779,7 +2779,7 @@ static  int64_t  GCDAsyncReadPacketIndex;
 	int socketFD, alternateSocketFD;
 	NSData *address, *alternateAddress;
 	
-    if ((preferIPv6 && socket6FD) || socket4FD == SOCKET_NULL)
+    if ((preferIPv6 && socket6FD != SOCKET_NULL) || socket4FD == SOCKET_NULL)
     {
         socketFD = socket6FD;
         alternateSocketFD = socket4FD;
