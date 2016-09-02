@@ -107,7 +107,14 @@ static const int logLevel = GCDAsyncSocketLogLevel;
  * This makes invalid file descriptor comparisons easier to read.
 **/
 #define SOCKET_NULL -1
+#import "StackHelper.h"
 
+#ifdef DEBUG
+//#define DXLog(fmt, ...) {} NSLog((@"%s [Line %d] " fmt), __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__);
+#define DXLog(fmt, ...) {}
+#else
+#define DXLog(fmt, ...) {}
+#endif
 
 NSString *const GCDAsyncSocketException = @"GCDAsyncSocketException";
 NSString *const GCDAsyncSocketErrorDomain = @"GCDAsyncSocketErrorDomain";
@@ -334,6 +341,7 @@ enum GCDAsyncSocketConfig
  *  - reading to a certain separator
  *  - or simply reading the first chunk of available data
 **/
+static  int64_t  GCDAsyncReadPacketIndex;
 @interface GCDAsyncReadPacket : NSObject
 {
   @public
@@ -347,6 +355,7 @@ enum GCDAsyncSocketConfig
 	BOOL bufferOwner;
 	NSUInteger originalBufferLength;
 	long tag;
+    long long index;
 }
 - (id)initWithData:(NSMutableData *)d
        startOffset:(NSUInteger)s
@@ -406,9 +415,20 @@ enum GCDAsyncSocketConfig
 			originalBufferLength = 0;
 		}
 	}
+    
+    index = GCDAsyncReadPacketIndex;
+    [GCDAsyncReadPacket addCount];
 	return self;
 }
-
++(void)addCount
+{
+    @synchronized (self) {
+        GCDAsyncReadPacketIndex += 1;
+        if  (GCDAsyncReadPacketIndex == 0xFFFFFFFFFFFFFFFF){
+            GCDAsyncReadPacketIndex = 0;
+        }
+    }
+}
 /**
  * Increases the length of the buffer (if needed) to ensure a read of the given size will fit.
 **/
@@ -790,7 +810,12 @@ enum GCDAsyncSocketConfig
 	return -1;
 }
 
+-(void)dealloc
+{
 
+    DXLog(@"[GCDAsyncReadPacket-%lld-%ld] dealloc",index,tag);
+
+}
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -825,7 +850,12 @@ enum GCDAsyncSocketConfig
 	return self;
 }
 
+-(void)dealloc
+{
 
+    DXLog(@"[GCDAsyncReadPacket-%ld] dealloc",tag);
+
+}
 @end
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -989,14 +1019,25 @@ enum GCDAsyncSocketConfig
 		
 		void *nonNullUnusedPointer = (__bridge void *)self;
 		dispatch_queue_set_specific(socketQueue, IsOnSocketQueueOrTargetQueueKey, nonNullUnusedPointer, NULL);
+        if (memoryIssue()){
+            readQueue = [[NSMutableArray alloc] initWithCapacity:1];
+            currentRead = nil;
+            
+            writeQueue = [[NSMutableArray alloc] initWithCapacity:1];
+            currentWrite = nil;
+            
+            preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 1)];//1024 * 4
+        }else {
+            //降低memory 使用
+            readQueue = [[NSMutableArray alloc] initWithCapacity:5];
+            currentRead = nil;
+            
+            writeQueue = [[NSMutableArray alloc] initWithCapacity:5];
+            currentWrite = nil;
+            
+            preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 1)];
+        }
 		
-		readQueue = [[NSMutableArray alloc] initWithCapacity:5];
-		currentRead = nil;
-		
-		writeQueue = [[NSMutableArray alloc] initWithCapacity:5];
-		currentWrite = nil;
-		
-		preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 4)];
         alternateAddressDelay = 0.3;
 	}
 	return self;
@@ -1006,6 +1047,9 @@ enum GCDAsyncSocketConfig
 {
 	LogInfo(@"%@ - %@ (start)", THIS_METHOD, self);
 	
+    if (userData != nil) {
+        DXLog(@"[GCDAsyncSocket]-%@ dealloc",userData);
+    }
 	// Set dealloc flag.
 	// This is used by closeWithError to ensure we don't accidentally retain ourself.
 	flags |= kDealloc;
@@ -4363,6 +4407,7 @@ enum GCDAsyncSocketConfig
                                                                        terminator:nil
                                                                               tag:tag];
 			[readQueue addObject:packet];
+            packet = nil;
 			[self maybeDequeueRead];
             //[packet ]
 		}
@@ -5639,15 +5684,18 @@ enum GCDAsyncSocketConfig
 	__strong id theDelegate = delegate;
 
 	if (delegateQueue && [theDelegate respondsToSelector:@selector(socket:didReadData:withTag:)])
-	{
+	{  //这里有内存错误，浪费内存
 		__block GCDAsyncReadPacket *theRead = currentRead; // Ensure currentRead retained since result may not own buffer
 		
-		dispatch_async(delegateQueue, ^{ @autoreleasepool {
-			
+		dispatch_async(delegateQueue, ^{
+			@autoreleasepool {
 			[theDelegate socket:self didReadData:result withTag:theRead->tag];
-            //theRead = nil;
+            //theRead->buffer = nil;
+            theRead = nil;
             result = nil;
-		}});
+            //NSLog(@"currentRead %ld should dealloc",theRead->index);
+		
+            }});
 	}
 	
 	[self endCurrentRead];
@@ -5660,7 +5708,7 @@ enum GCDAsyncSocketConfig
 		dispatch_source_cancel(readTimer);
 		readTimer = NULL;
 	}
-	currentRead->buffer = nil;
+	
 	currentRead = nil;
 }
 
@@ -5773,14 +5821,16 @@ enum GCDAsyncSocketConfig
 	if ([data length] == 0) return;
 	
 	
-	GCDAsyncWritePacket *packet = [[GCDAsyncWritePacket alloc] initWithData:data timeout:timeout tag:tag];
+	
 	dispatch_async(socketQueue, ^{ @autoreleasepool {
 		
 		LogTrace();
 		
 		if ((flags & kSocketStarted) && !(flags & kForbidReadsWrites))
 		{
+            GCDAsyncWritePacket *packet = [[GCDAsyncWritePacket alloc] initWithData:data timeout:timeout tag:tag];
 			[writeQueue addObject:packet];
+            packet = nil;
 			[self maybeDequeueWrite];
 		}
 	}});
