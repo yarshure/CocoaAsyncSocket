@@ -1020,10 +1020,10 @@ static  int64_t  GCDAsyncReadPacketIndex;
 		void *nonNullUnusedPointer = (__bridge void *)self;
 		dispatch_queue_set_specific(socketQueue, IsOnSocketQueueOrTargetQueueKey, nonNullUnusedPointer, NULL);
         if (memoryIssue()){
-            readQueue = [[NSMutableArray alloc] initWithCapacity:1];
+            readQueue = [[NSMutableArray alloc] initWithCapacity:2];
             currentRead = nil;
             
-            writeQueue = [[NSMutableArray alloc] initWithCapacity:1];
+            writeQueue = [[NSMutableArray alloc] initWithCapacity:2];
             currentWrite = nil;
             
             preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 1)];//1024 * 4
