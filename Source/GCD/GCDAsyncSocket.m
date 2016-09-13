@@ -109,9 +109,11 @@ static const int logLevel = GCDAsyncSocketLogLevel;
 #define SOCKET_NULL -1
 #import "StackHelper.h"
 
+//extern uint64_t reportMemoryUsed();
+
 #ifdef DEBUG
-//#define DXLog(fmt, ...) {} NSLog((@"%s [Line %d] " fmt), __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__);
-#define DXLog(fmt, ...) {}
+#define DXLog(fmt, ...) {} NSLog((@"%lld,%s [Line %d] " fmt),reportMemoryUsed(), __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__);
+//#define DXLog(fmt, ...) {}
 #else
 #define DXLog(fmt, ...) {}
 #endif
@@ -238,7 +240,7 @@ enum GCDAsyncSocketConfig
 	{
 		preBufferSize = numBytes;
 		preBuffer = malloc(preBufferSize);
-		
+        DXLog(@"GCDAsyncSocketPreBuffer malloc buffer %p",preBuffer);
 		readPointer = preBuffer;
 		writePointer = preBuffer;
 	}
@@ -247,8 +249,11 @@ enum GCDAsyncSocketConfig
 
 - (void)dealloc
 {
-	if (preBuffer)
-		free(preBuffer);
+    if (preBuffer){
+        DXLog(@"GCDAsyncSocketPreBuffer free buffer %p",preBuffer);
+        free(preBuffer);
+    }
+		
 }
 
 - (void)ensureCapacityForWrite:(size_t)numBytes
@@ -1035,7 +1040,7 @@ static  int64_t  GCDAsyncReadPacketIndex;
             writeQueue = [[NSMutableArray alloc] initWithCapacity:5];
             currentWrite = nil;
             
-            preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 1)];
+            preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 4)];
         }
 		
         alternateAddressDelay = 0.3;
@@ -1076,7 +1081,9 @@ static  int64_t  GCDAsyncReadPacketIndex;
 	if (socketQueue) dispatch_release(socketQueue);
 	#endif
 	socketQueue = NULL;
-	
+    if (preBuffer != nil){
+        preBuffer = nil;
+    }
 	LogInfo(@"%@ - %@ (finish)", THIS_METHOD, self);
 }
 
