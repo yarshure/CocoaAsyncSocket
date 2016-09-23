@@ -107,7 +107,7 @@ static const int logLevel = GCDAsyncSocketLogLevel;
  * This makes invalid file descriptor comparisons easier to read.
 **/
 #define SOCKET_NULL -1
-#import "StackHelper.h"
+    //#import "StackHelper.h"
 
 #ifdef DEBUG
 //#define DXLog(fmt, ...) {} NSLog((@"%s [Line %d] " fmt), __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__);
@@ -1019,6 +1019,7 @@ static  int64_t  GCDAsyncReadPacketIndex;
 		
 		void *nonNullUnusedPointer = (__bridge void *)self;
 		dispatch_queue_set_specific(socketQueue, IsOnSocketQueueOrTargetQueueKey, nonNullUnusedPointer, NULL);
+#if TARGET_OS_IPHONE
         if (memoryIssue()){
             readQueue = [[NSMutableArray alloc] initWithCapacity:2];
             currentRead = nil;
@@ -1037,7 +1038,15 @@ static  int64_t  GCDAsyncReadPacketIndex;
             
             preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 1)];
         }
-		
+#else
+    readQueue = [[NSMutableArray alloc] initWithCapacity:5];
+    currentRead = nil;
+    
+    writeQueue = [[NSMutableArray alloc] initWithCapacity:5];
+    currentWrite = nil;
+    
+    preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 1)];
+#endif
         alternateAddressDelay = 0.3;
 	}
 	return self;
