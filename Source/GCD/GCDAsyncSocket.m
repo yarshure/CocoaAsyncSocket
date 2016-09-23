@@ -12,6 +12,10 @@
 
 #if TARGET_OS_IPHONE
 #import <CFNetwork/CFNetwork.h>
+#import <execinfo.h>
+#include <mach/task_info.h>
+#include <mach/task.h>
+#include <mach/mach_init.h>
 #endif
 
 #import <TargetConditionals.h>
@@ -107,11 +111,44 @@ static const int logLevel = GCDAsyncSocketLogLevel;
  * This makes invalid file descriptor comparisons easier to read.
 **/
 #define SOCKET_NULL -1
+<<<<<<< HEAD
     //#import "StackHelper.h"
 
+=======
+//#import "StackHelper.h"
+
+extern uint64_t reportMemoryUsed();
+uint64_t reportMemoryUsedGCD()
+{
+    task_vm_info_data_t vmInfo;
+    mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+    kern_return_t err = task_info(mach_task_self(), TASK_VM_INFO, (task_info_t) &vmInfo, &count);
+    if (err == KERN_SUCCESS){
+        uint64_t size = vmInfo.internal + vmInfo.compressed - vmInfo.purgeable_volatile_pmap;
+        //NSLog(@"current memory use  %llu",sizt);
+        return size;
+    }else {
+        return 0;
+        //NSLog(@"error %d",err);
+    }
+    //return static_cast<size_t>(-1);
+    
+}
+BOOL memoryIssueGCD()
+{
+    return  NO;
+    //    NSString *ver = [[UIDevice currentDevice] systemVersion];
+    //    NSString *s = [ver componentsSeparatedByString:@"."][0];
+    //    if (s.integerValue >= 10) {
+    //        return NO;
+    //    }else {
+    //        return  YES;
+    //    }
+}
+//extern bool memoryIssue();
 #ifdef DEBUG
-//#define DXLog(fmt, ...) {} NSLog((@"%s [Line %d] " fmt), __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__);
-#define DXLog(fmt, ...) {}
+#define DXLog(fmt, ...) {} NSLog((@"%lld,%s [Line %d] " fmt),reportMemoryUsedGCD(), __PRETTY_FUNCTION__, __LINE__, ##__VA_ARGS__);
+//#define DXLog(fmt, ...) {}
 #else
 #define DXLog(fmt, ...) {}
 #endif
@@ -238,7 +275,7 @@ enum GCDAsyncSocketConfig
 	{
 		preBufferSize = numBytes;
 		preBuffer = malloc(preBufferSize);
-		
+        DXLog(@"GCDAsyncSocketPreBuffer malloc buffer %p",preBuffer);
 		readPointer = preBuffer;
 		writePointer = preBuffer;
 	}
@@ -247,8 +284,11 @@ enum GCDAsyncSocketConfig
 
 - (void)dealloc
 {
-	if (preBuffer)
-		free(preBuffer);
+    if (preBuffer){
+        DXLog(@"GCDAsyncSocketPreBuffer free buffer %p",preBuffer);
+        free(preBuffer);
+    }
+		
 }
 
 - (void)ensureCapacityForWrite:(size_t)numBytes
@@ -1020,7 +1060,8 @@ static  int64_t  GCDAsyncReadPacketIndex;
 		void *nonNullUnusedPointer = (__bridge void *)self;
 		dispatch_queue_set_specific(socketQueue, IsOnSocketQueueOrTargetQueueKey, nonNullUnusedPointer, NULL);
 #if TARGET_OS_IPHONE
-        if (memoryIssue()){
+    
+        if (memoryIssueGCD()){
             readQueue = [[NSMutableArray alloc] initWithCapacity:2];
             currentRead = nil;
             
@@ -1036,7 +1077,7 @@ static  int64_t  GCDAsyncReadPacketIndex;
             writeQueue = [[NSMutableArray alloc] initWithCapacity:5];
             currentWrite = nil;
             
-            preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 1)];
+            preBuffer = [[GCDAsyncSocketPreBuffer alloc] initWithCapacity:(1024 * 4)];
         }
 #else
     readQueue = [[NSMutableArray alloc] initWithCapacity:5];
@@ -1085,7 +1126,9 @@ static  int64_t  GCDAsyncReadPacketIndex;
 	if (socketQueue) dispatch_release(socketQueue);
 	#endif
 	socketQueue = NULL;
-	
+    if (preBuffer != nil){
+        preBuffer = nil;
+    }
 	LogInfo(@"%@ - %@ (finish)", THIS_METHOD, self);
 }
 
