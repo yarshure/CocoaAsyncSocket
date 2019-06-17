@@ -22,7 +22,7 @@ let package = Package(
             name: "CocoaAsyncSocket",
             dependencies: [],
             path:"Source/GCD",
-            publicHeadersPath:"Source/GCD/include",
+            publicHeadersPath:"include",
             cSettings: [
                 .headerSearchPath("include"),
             ]),
